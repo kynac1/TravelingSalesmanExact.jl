@@ -572,6 +572,7 @@ function _get_optimal_tour(
         t = @elapsed optimize!(model)
         status = termination_status(model)
         status == MOI.OPTIMAL || @warn("Problem status not optimal; got status $status")
+        has_values(model) || return [], Inf 
         num_cycles = remove_cycles!(model, tour_matrix; symmetric = symmetric)
         tot_cycles[] += num_cycles
         iter[] += 1
