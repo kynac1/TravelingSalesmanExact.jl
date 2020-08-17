@@ -172,20 +172,25 @@ end
 @testset "Time Windows" begin
     cost = zeros(4, 4)
     cost[1,2] = 1
-    cost[2,1] = 1
+    cost[2,1] = 0
+    cost[1,4] = -1
 
     times = ones(4, 4)
     tw = [
-        0 100
+        0 4
         0 1
-        0 100
-        0 100
+        0 3
+        0 2
     ]
     route, objective = get_optimal_tour(cost, times, tw)
-    @test objective == 1
+    @test objective ≈ 1
+    start = findfirst(route .== 1)
+    route = circshift(route, 1-start)
+    @test route == [1,2,4,3]
+
     tw[2,:] .= [0,2]
     route, objective = get_optimal_tour(cost, times, tw)
-    @test objective == 0
+    @test objective ≈ -1
     times = [
         0 1 0 0
         10 0 10 10
@@ -193,7 +198,15 @@ end
         10 10 10 0
     ]
     route, objective = get_optimal_tour(times, tw)
-    @test objective == 31
+    @test objective ≈ Inf
+    tw = [
+        0 100
+        0 1
+        0 100
+        0 100
+    ]
+    route, objective = get_optimal_tour(times, tw)
+    @test objective ≈ 31
 end
 
 @testset "Dropped" begin
@@ -204,5 +217,21 @@ end
     )
     route, objective = get_optimal_tour(cost, penalties)
     @test length(route) == 9
-    @test objective == 9
+    @test objective ≈ 9
+
+    times = [
+        0 1 0 0
+        10 0 10 10
+        10 10 0 10
+        10 10 10 0
+    ]
+    tw = [
+        0 100
+        0 1
+        0 100
+        0 100
+    ]
+    penalties = Dict(2 => 5)
+    route, objective = get_optimal_tour(times, tw, penalties)
+    @test objective ≈ 25
 end
