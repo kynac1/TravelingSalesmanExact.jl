@@ -186,8 +186,23 @@ end
     tw[2,:] .= [0,2]
     route, objective = get_optimal_tour(cost, times, tw)
     @test objective == 0
+    times = [
+        0 1 0 0
+        10 0 10 10
+        10 10 0 10
+        10 10 10 0
+    ]
+    route, objective = get_optimal_tour(times, tw)
+    @test objective == 31
 end
 
 @testset "Dropped" begin
-    @test true
+    cost = ones(10, 10)
+    penalties = Dict(
+        1 => 3,
+        3 => 0,
+    )
+    route, objective = get_optimal_tour(cost, penalties)
+    @test length(route) == 9
+    @test objective == 9
 end

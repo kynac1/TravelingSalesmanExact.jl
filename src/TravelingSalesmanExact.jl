@@ -68,9 +68,13 @@ function find_cycle(perm_matrix, starting_ind = 1)
         # by the solvers, instead we sometimes have `x ≈ 1.0` instead. Since these are binary
         # values, we might as well just compare to 1/2.
         next_ind = findfirst(>(0.5), @views(perm_matrix[ind, 1:prev_ind-1]))
+        another_ind = findfirst(>(0.5), @views(perm_matrix[ind, prev_ind+1:end]))
+        if isnothing(next_ind) && isnothing(another_ind)
+            cycle = Int[]
+            break
+        end
         if isnothing(next_ind)
-            next_ind = findfirst(>(0.5), @views(perm_matrix[ind, prev_ind+1:end])) +
-                       prev_ind
+            next_ind = another_ind + prev_ind
         end
         next_ind == starting_ind && break
         push!(cycle, next_ind)
@@ -90,8 +94,12 @@ function get_cycles(perm_matrix)
     cycles = Vector{Int}[]
     while length(remaining_inds) > 0
         cycle = find_cycle(perm_matrix, first(remaining_inds))
-        push!(cycles, cycle)
-        setdiff!(remaining_inds, cycle)
+        if length(cycle) > 0
+            push!(cycles, cycle)
+            setdiff!(remaining_inds, cycle)
+        else
+            setdiff!(remaining_inds, [first(remaining_inds)])
+        end
     end
     cycles
 end
@@ -232,35 +240,6 @@ function get_optimal_tour(
     return _get_optimal_tour(cost, optimizer, symmetric, verbose, lazy_constraints)
 end
 
-
-function build_tour_matrix(model, cost::AbstractMatrix, symmetric::Bool)
-    N = size(cost, 1)
-    if symmetric
-        # `tour_matrix` has tour_matrix[i,j] = 1 iff cities i and j should be connected
-        @variable(model, tour_matrix[1:N, 1:N], Symmetric, binary = true)
-
-       # cost of the tour
-        @objective(model, Min, sum(tour_matrix[i, j] * cost[i, j] for i = 1:N, j = 1:i))
-        for i = 1:N
-            @constraint(model, sum(tour_matrix[i, :]) == 2) # degree of each city is 2
-            @constraint(model, tour_matrix[i, i] == 0) # rule out cycles of length 1
-        end
-    else
-       # `tour_matrix` will be a permutation matrix
-        @variable(model, tour_matrix[1:N, 1:N], binary = true)
-        @objective(model, Min, sum(tour_matrix[i, j] * cost[i, j] for i = 1:N, j = 1:N))
-        for i = 1:N
-            @constraint(model, sum(tour_matrix[i, :]) == 1) # row-sum is 1
-            @constraint(model, sum(tour_matrix[:, i]) == 1) # col-sum is 1
-            @constraint(model, tour_matrix[i, i] == 0) # rule out cycles of length 1
-            for j = 1:N
-                @constraint(model, tour_matrix[i, j] + tour_matrix[j, i] <= 1) # rule out cycles of length 2
-            end
-        end
-    end
-    return tour_matrix
-end
-
 function get_optimal_tour(
     cost::AbstractMatrix,
     time_matrix::AbstractMatrix,
@@ -275,6 +254,129 @@ function get_optimal_tour(
     return _get_optimal_tour(cost, optimizer, false, verbose, lazy_constraints, nothing, time_matrix, time_windows)
 end
 
+function get_optimal_tour(
+    cost::AbstractMatrix,
+    time_matrix::AbstractMatrix,
+    time_windows::AbstractMatrix,
+    drop_penalties::Dict,
+    optimizer = get_default_optimizer();
+    verbose = false,
+    symmetric = issymmetric(cost),
+    lazy_constraints = false,
+)
+    size(cost, 1) == size(cost, 2) || throw(ArgumentError("First argument must be a square matrix"))
+    isnothing(optimizer) && throw(ArgumentError("An optimizer is required if a default optimizer has not been set."))
+    return _get_optimal_tour(cost, optimizer, false, verbose, lazy_constraints, nothing, time_matrix, time_windows, drop_penalties)
+end
+
+function get_optimal_tour(
+    time_matrix::AbstractMatrix,
+    time_windows::AbstractMatrix,
+    optimizer = get_default_optimizer();
+    verbose = false,
+    symmetric = issymmetric(time_matrix),
+    lazy_constraints = false,
+)
+    size(time_matrix, 1) == size(time_matrix, 2) || throw(ArgumentError("First argument must be a square matrix"))
+    isnothing(optimizer) && throw(ArgumentError("An optimizer is required if a default optimizer has not been set."))
+    return _get_optimal_tour(time_matrix, optimizer, false, verbose, lazy_constraints, nothing, time_matrix, time_windows)
+end
+
+function get_optimal_tour(
+    time_matrix::AbstractMatrix,
+    time_windows::AbstractMatrix,
+    drop_penalties::Dict,
+    optimizer = get_default_optimizer();
+    verbose = false,
+    symmetric = issymmetric(time_matrix),
+    lazy_constraints = false,
+)
+    size(time_matrix, 1) == size(time_matrix, 2) || throw(ArgumentError("First argument must be a square matrix"))
+    isnothing(optimizer) && throw(ArgumentError("An optimizer is required if a default optimizer has not been set."))
+    return _get_optimal_tour(time_matrix, optimizer, false, verbose, lazy_constraints, nothing, time_matrix, time_windows, drop_penalties)
+end
+
+function get_optimal_tour(
+    cost::AbstractMatrix,
+    drop_penalties::Dict,
+    optimizer = get_default_optimizer();
+    verbose = false,
+    symmetric = issymmetric(cost),
+    lazy_constraints = false,
+)
+    size(cost, 1) == size(cost, 2) || throw(ArgumentError("First argument must be a square matrix"))
+    isnothing(optimizer) && throw(ArgumentError("An optimizer is required if a default optimizer has not been set."))
+    return _get_optimal_tour(cost, optimizer, symmetric, verbose, lazy_constraints, nothing, nothing, nothing, drop_penalties)
+end
+
+function build_tour_matrix(model, cost::AbstractMatrix, symmetric::Bool)
+    N = size(cost, 1)
+    if symmetric
+    # `tour_matrix` has tour_matrix[i,j] = 1 iff cities i and j should be connected
+        @variable(model, tour_matrix[1:N, 1:N], Symmetric, binary = true)
+
+    # cost of the tour
+        @objective(model, Min, sum(tour_matrix[i, j] * cost[i, j] for i = 1:N, j = 1:i))
+        for i = 1:N
+            @constraint(model, sum(tour_matrix[i, :]) == 2) # degree of each city is 2
+            @constraint(model, tour_matrix[i, i] == 0) # rule out cycles of length 1
+        end
+    else
+        # `tour_matrix` will be a permutation matrix
+        @variable(model, tour_matrix[1:N, 1:N], binary = true)
+        @objective(model, Min, sum(tour_matrix[i, j] * cost[i, j] for i = 1:N, j = 1:N))
+        for i = 1:N
+            @constraint(model, sum(tour_matrix[i, :]) == 1) # row-sum is 1
+            @constraint(model, sum(tour_matrix[:, i]) == 1) # col-sum is 1
+            @constraint(model, tour_matrix[i, i] == 0) # rule out cycles of length 1
+            for j = 1:N
+                @constraint(model, tour_matrix[i, j] + tour_matrix[j, i] <= 1) # rule out cycles of length 2
+            end
+        end
+    end
+    return tour_matrix
+end
+
+function build_tour_matrix(model, cost::AbstractMatrix, drop_penalties::Dict, symmetric::Bool)
+    N = size(cost, 1)
+    @variable(model, visit[1:N], binary = true)
+    penalty_array = zeros(N)
+    for i ∈ 1:N
+        if i ∈ keys(drop_penalties)
+            penalty_array[i] = drop_penalties[i]
+        else
+            @constraint(model, visit[i] == 1)
+        end
+    end
+    
+
+    if symmetric
+        # `tour_matrix` has tour_matrix[i,j] = 1 iff cities i and j should be connected
+        @variable(model, tour_matrix[1:N, 1:N], Symmetric, binary = true)
+
+       # cost of the tour
+        @objective(model, Min, sum(tour_matrix[i, j] * cost[i, j] for i = 1:N, j = 1:i) + sum((1-visit[i])*penalty_array[i] for i = 1:N))
+        for i = 1:N
+            @constraint(model, sum(tour_matrix[i, :]) == 2*visit[i]) # degree of each city is 2
+            @constraint(model, tour_matrix[i, i] == 0) # rule out cycles of length 1
+        end
+    else
+       # `tour_matrix` will be a permutation matrix
+        @variable(model, tour_matrix[1:N, 1:N], binary = true)
+        @objective(model, Min, sum(tour_matrix[i, j] * cost[i, j] for i = 1:N, j = 1:N) + sum((1-visit[i])*penalty_array[i] for i = 1:N))
+        for i = 1:N
+            @constraint(model, sum(tour_matrix[i, :]) == visit[i]) # row-sum is 1
+            @constraint(model, sum(tour_matrix[:, i]) == visit[i]) # col-sum is 1
+            @constraint(model, tour_matrix[i, i] == 0) # rule out cycles of length 1
+            for j = 1:N
+                @constraint(model, tour_matrix[i, j] + tour_matrix[j, i] <= 1) # rule out cycles of length 2
+            end
+        end
+    end
+    return tour_matrix
+end
+
+
 function _get_optimal_tour(
     cost::AbstractMatrix,
     optimizer,
@@ -284,13 +386,16 @@ function _get_optimal_tour(
     cities = nothing,
     times = nothing,
     time_windows = nothing,
+    drop_penalties = Dict{Int,Number}(),
 )
     has_cities = !isnothing(cities)
 
     model = Model(optimizer)
-    tour_matrix = build_tour_matrix(model, cost, symmetric)
-    @info times# TODO: Remove as unnecessary
-    @info time_windows# TODO: Remove as unnecessary
+    if length(drop_penalties) > 0
+        tour_matrix = build_tour_matrix(model, cost, drop_penalties, symmetric)
+    else
+        tour_matrix = build_tour_matrix(model, cost, symmetric)
+    end
     if !isnothing(times) && !isnothing(time_windows)
         @variable(model, time_windows[i,1] <= time_vars[i = 1:size(time_windows, 1)] <= time_windows[i,2])
         for i in 1:size(cost, 1)
@@ -357,10 +462,6 @@ function _get_optimal_tour(
             $(num_constraints(model,
             GenericAffExpr{Float64,VariableRef}, MOI.LessThan{Float64})) inequality constraints, and
             $(num_constraints(model, GenericAffExpr{Float64,VariableRef}, MOI.EqualTo{Float64})) equality constraints."
-    end
-    if !isnothing(times) && status == MOI.OPTIMAL # TODO: Remove as unnecessary
-        @info value.(time_vars)
-        @info value.(tour_matrix)
     end
     return first(cycles), objective_value(model)
 end
