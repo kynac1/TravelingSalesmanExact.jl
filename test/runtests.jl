@@ -128,7 +128,7 @@ end
         [82.70468776751652, 74.73476674725042],
         [8.637366704185245, 87.23819026270408]
     ]
-    t7, c7 = test_tour(cities; verbose = true, lazy_constraints=true)
+    t7, c7 = test_tour(cities; verbose = true, lazy_constraints = true)
     t8, c8 = @inferred test_tour(cities; verbose = false, symmetric = false)
     cost = [TravelingSalesmanExact.euclidean_distance(c1, c2) for c1 in cities, c2 in cities]
     t9, c9 = test_tour(cost; verbose = false, symmetric = false)
@@ -167,4 +167,27 @@ end
         symmetric = false,
     )
     @test asym_cost ≈ 10628
+end
+
+@testset "Time Windows" begin
+    cost = zeros(4, 4)
+    cost[1,2] = 1
+    cost[2,1] = 1
+
+    times = ones(4, 4)
+    tw = [
+        0 100
+        0 1
+        0 100
+        0 100
+    ]
+    route, objective = get_optimal_tour(cost, times, tw)
+    @test objective == 1
+    tw[2,:] .= [0,2]
+    route, objective = get_optimal_tour(cost, times, tw)
+    @test objective == 0
+end
+
+@testset "Dropped" begin
+    @test true
 end

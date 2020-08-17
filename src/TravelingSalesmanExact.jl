@@ -237,30 +237,43 @@ function build_tour_matrix(model, cost::AbstractMatrix, symmetric::Bool)
     N = size(cost, 1)
     if symmetric
         # `tour_matrix` has tour_matrix[i,j] = 1 iff cities i and j should be connected
-       @variable(model, tour_matrix[1:N, 1:N], Symmetric, binary = true)
+        @variable(model, tour_matrix[1:N, 1:N], Symmetric, binary = true)
 
        # cost of the tour
-       @objective(model, Min, sum(tour_matrix[i, j] * cost[i, j] for i = 1:N, j = 1:i))
-       for i = 1:N
-           @constraint(model, sum(tour_matrix[i, :]) == 2) # degree of each city is 2
-           @constraint(model, tour_matrix[i, i] == 0) # rule out cycles of length 1
-       end
-   else
+        @objective(model, Min, sum(tour_matrix[i, j] * cost[i, j] for i = 1:N, j = 1:i))
+        for i = 1:N
+            @constraint(model, sum(tour_matrix[i, :]) == 2) # degree of each city is 2
+            @constraint(model, tour_matrix[i, i] == 0) # rule out cycles of length 1
+        end
+    else
        # `tour_matrix` will be a permutation matrix
-       @variable(model, tour_matrix[1:N, 1:N], binary = true)
-       @objective(model, Min, sum(tour_matrix[i, j] * cost[i, j] for i = 1:N, j = 1:N))
-       for i = 1:N
-           @constraint(model, sum(tour_matrix[i, :]) == 1) # row-sum is 1
-           @constraint(model, sum(tour_matrix[:, i]) == 1) # col-sum is 1
-           @constraint(model, tour_matrix[i, i] == 0) # rule out cycles of length 1
-           for j = 1:N
-               @constraint(model, tour_matrix[i, j] + tour_matrix[j, i] <= 1) # rule out cycles of length 2
-           end
-       end
-   end
-   return tour_matrix
+        @variable(model, tour_matrix[1:N, 1:N], binary = true)
+        @objective(model, Min, sum(tour_matrix[i, j] * cost[i, j] for i = 1:N, j = 1:N))
+        for i = 1:N
+            @constraint(model, sum(tour_matrix[i, :]) == 1) # row-sum is 1
+            @constraint(model, sum(tour_matrix[:, i]) == 1) # col-sum is 1
+            @constraint(model, tour_matrix[i, i] == 0) # rule out cycles of length 1
+            for j = 1:N
+                @constraint(model, tour_matrix[i, j] + tour_matrix[j, i] <= 1) # rule out cycles of length 2
+            end
+        end
+    end
+    return tour_matrix
 end
 
+function get_optimal_tour(
+    cost::AbstractMatrix,
+    time_matrix::AbstractMatrix,
+    time_windows::AbstractMatrix,
+    optimizer = get_default_optimizer();
+    verbose = false,
+    symmetric = issymmetric(cost),
+    lazy_constraints = false,
+)
+    size(cost, 1) == size(cost, 2) || throw(ArgumentError("First argument must be a square matrix"))
+    isnothing(optimizer) && throw(ArgumentError("An optimizer is required if a default optimizer has not been set."))
+    return _get_optimal_tour(cost, optimizer, false, verbose, lazy_constraints, nothing, time_matrix, time_windows)
+end
 
 function _get_optimal_tour(
     cost::AbstractMatrix,
@@ -269,11 +282,23 @@ function _get_optimal_tour(
     verbose,
     lazy_constraints,
     cities = nothing,
+    times = nothing,
+    time_windows = nothing,
 )
     has_cities = !isnothing(cities)
 
     model = Model(optimizer)
     tour_matrix = build_tour_matrix(model, cost, symmetric)
+    @info times# TODO: Remove as unnecessary
+    @info time_windows# TODO: Remove as unnecessary
+    if !isnothing(times) && !isnothing(time_windows)
+        @variable(model, time_windows[i,1] <= time_vars[i = 1:size(time_windows, 1)] <= time_windows[i,2])
+        for i in 1:size(cost, 1)
+            for j in 2:size(cost, 1)
+                @constraint(model, time_vars[i] + times[i,j] <= time_vars[j] + maximum(time_windows)*(1-tour_matrix[i,j]))
+            end
+        end
+    end
 
     if has_cities && verbose
         @info "Starting optimization." plot_cities(cities)
@@ -308,12 +333,12 @@ function _get_optimal_tour(
             end
 
             if has_cities
-                @info "Iteration $(iter[]) took $(round(t, digits=3))s, $description" plot_tour(
+                @info "Iteration $(iter[]) took $(round(t, digits = 3))s, $description" plot_tour(
                     cities,
                     value.(tour_matrix),
                 )
             else
-                @info "Iteration $(iter[]) took $(round(t, digits=3))s, $description"
+                @info "Iteration $(iter[]) took $(round(t, digits = 3))s, $description"
             end
         end
     end
@@ -332,6 +357,10 @@ function _get_optimal_tour(
             $(num_constraints(model,
             GenericAffExpr{Float64,VariableRef}, MOI.LessThan{Float64})) inequality constraints, and
             $(num_constraints(model, GenericAffExpr{Float64,VariableRef}, MOI.EqualTo{Float64})) equality constraints."
+    end
+    if !isnothing(times) && status == MOI.OPTIMAL # TODO: Remove as unnecessary
+        @info value.(time_vars)
+        @info value.(tour_matrix)
     end
     return first(cycles), objective_value(model)
 end
