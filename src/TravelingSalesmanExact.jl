@@ -240,6 +240,36 @@ function get_optimal_tour(
     return _get_optimal_tour(cost, optimizer, symmetric, verbose, lazy_constraints)
 end
 
+"""
+    get_optimal_tour(
+        cost::AbstractMatrix,
+        optimizer = get_default_optimizer();
+        verbose::Bool = false,
+        symmetric::Bool = issymmetric(cost),
+        lazy::Bool = true,
+    )
+
+Solves the travelling salesman problem for a square cost matrix using JuMP by
+formulating a MILP using the Dantzig-Fulkerson-Johnson formulation and
+adaptively adding constraints to disallow non-maximal cycles. Returns an optimal
+tour and the cost of the optimal path.
+
+Has additional constraits to ensure that locations are visited inside time windows.
+Time windows are given as a 2d array with shape N×2. 
+
+The fourth argument is mandatory if a default optimizer has not been set (via
+`set_default_optimizer`). This argument should be a function which creates an
+optimizer, e.g.
+
+        get_optimal_tour(cities, GLPK.Optimizer)
+
+There are three boolean optional keyword arguments:
+
+* `verbose` indicates whether or not to print lots of information as the algorithm proceeds.
+* `symmetric` indicates whether or not the `cost` matrix is symmetric (the default is to check via `issymmetric`)
+* `lazy` indicates whether lazy constraints should be used (which requires a [compatible solver](https://www.juliaopt.org/JuMP.jl/v0.21/callbacks/#Available-solvers-1)).
+
+"""
 function get_optimal_tour(
     cost::AbstractMatrix,
     time_matrix::AbstractMatrix,
@@ -254,6 +284,36 @@ function get_optimal_tour(
     return _get_optimal_tour(cost, optimizer, false, verbose, lazy_constraints, nothing, time_matrix, time_windows)
 end
 
+"""
+    get_optimal_tour(
+        cost::AbstractMatrix,
+        time_matrix::AbstractMatrix,
+        time_windows::AbstractMatrix,
+        drop_penalties::Dict,
+        optimizer = get_default_optimizer();
+        verbose = false,
+        symmetric = issymmetric(cost),
+        lazy_constraints = false,
+    )
+
+Solves the travelling salesman problem for a square cost matrix using JuMP by
+formulating a MILP using the Dantzig-Fulkerson-Johnson formulation and
+adaptively adding constraints to disallow non-maximal cycles. Returns an optimal
+tour and the cost of the optimal path.
+
+The fifth argument is mandatory if a default optimizer has not been set (via
+`set_default_optimizer`). This argument should be a function which creates an
+optimizer, e.g.
+
+        get_optimal_tour(cities, GLPK.Optimizer)
+
+There are three boolean optional keyword arguments:
+
+* `verbose` indicates whether or not to print lots of information as the algorithm proceeds.
+* `symmetric` indicates whether or not the `cost` matrix is symmetric (the default is to check via `issymmetric`)
+* `lazy` indicates whether lazy constraints should be used (which requires a [compatible solver](https://www.juliaopt.org/JuMP.jl/v0.21/callbacks/#Available-solvers-1)).
+
+"""
 function get_optimal_tour(
     cost::AbstractMatrix,
     time_matrix::AbstractMatrix,
@@ -269,6 +329,34 @@ function get_optimal_tour(
     return _get_optimal_tour(cost, optimizer, false, verbose, lazy_constraints, nothing, time_matrix, time_windows, drop_penalties)
 end
 
+"""
+    get_optimal_tour(
+        time_matrix::AbstractMatrix,
+        time_windows::AbstractMatrix,
+        optimizer = get_default_optimizer();
+        verbose = false,
+        symmetric = issymmetric(time_matrix),
+        lazy_constraints = false,
+    )
+
+Solves the travelling salesman problem for a square cost matrix using JuMP by
+formulating a MILP using the Dantzig-Fulkerson-Johnson formulation and
+adaptively adding constraints to disallow non-maximal cycles. Returns an optimal
+tour and the cost of the optimal path.
+
+The third argument is mandatory if a default optimizer has not been set (via
+`set_default_optimizer`). This argument should be a function which creates an
+optimizer, e.g.
+
+        get_optimal_tour(cities, GLPK.Optimizer)
+
+There are three boolean optional keyword arguments:
+
+* `verbose` indicates whether or not to print lots of information as the algorithm proceeds.
+* `symmetric` indicates whether or not the `cost` matrix is symmetric (the default is to check via `issymmetric`)
+* `lazy` indicates whether lazy constraints should be used (which requires a [compatible solver](https://www.juliaopt.org/JuMP.jl/v0.21/callbacks/#Available-solvers-1)).
+
+"""
 function get_optimal_tour(
     time_matrix::AbstractMatrix,
     time_windows::AbstractMatrix,
@@ -282,6 +370,35 @@ function get_optimal_tour(
     return _get_optimal_tour(time_matrix, optimizer, false, verbose, lazy_constraints, nothing, time_matrix, time_windows)
 end
 
+"""
+    get_optimal_tour(
+        time_matrix::AbstractMatrix,
+        time_windows::AbstractMatrix,
+        drop_penalties::Dict,
+        optimizer = get_default_optimizer();
+        verbose = false,
+        symmetric = issymmetric(time_matrix),
+        lazy_constraints = false,
+    )
+
+Solves the travelling salesman problem for a square cost matrix using JuMP by
+formulating a MILP using the Dantzig-Fulkerson-Johnson formulation and
+adaptively adding constraints to disallow non-maximal cycles. Returns an optimal
+tour and the cost of the optimal path.
+
+The fourth argument is mandatory if a default optimizer has not been set (via
+`set_default_optimizer`). This argument should be a function which creates an
+optimizer, e.g.
+
+        get_optimal_tour(times, time_windows, penalties, GLPK.Optimizer)
+
+There are three boolean optional keyword arguments:
+
+* `verbose` indicates whether or not to print lots of information as the algorithm proceeds.
+* `symmetric` indicates whether or not the `cost` matrix is symmetric (the default is to check via `issymmetric`)
+* `lazy` indicates whether lazy constraints should be used (which requires a [compatible solver](https://www.juliaopt.org/JuMP.jl/v0.21/callbacks/#Available-solvers-1)).
+
+"""
 function get_optimal_tour(
     time_matrix::AbstractMatrix,
     time_windows::AbstractMatrix,
@@ -296,6 +413,34 @@ function get_optimal_tour(
     return _get_optimal_tour(time_matrix, optimizer, false, verbose, lazy_constraints, nothing, time_matrix, time_windows, drop_penalties)
 end
 
+"""
+    get_optimal_tour(
+        cost::AbstractMatrix,
+        drop_penalties::Dict,
+        optimizer = get_default_optimizer();
+        verbose = false,
+        symmetric = issymmetric(cost),
+        lazy_constraints = false,
+    )
+
+Solves the travelling salesman problem for a square cost matrix using JuMP by
+formulating a MILP using the Dantzig-Fulkerson-Johnson formulation and
+adaptively adding constraints to disallow non-maximal cycles. Returns an optimal
+tour and the cost of the optimal path.
+
+The third argument is mandatory if a default optimizer has not been set (via
+`set_default_optimizer`). This argument should be a function which creates an
+optimizer, e.g.
+
+        get_optimal_tour(cost, penalties, GLPK.Optimizer)
+
+There are three boolean optional keyword arguments:
+
+* `verbose` indicates whether or not to print lots of information as the algorithm proceeds.
+* `symmetric` indicates whether or not the `cost` matrix is symmetric (the default is to check via `issymmetric`)
+* `lazy` indicates whether lazy constraints should be used (which requires a [compatible solver](https://www.juliaopt.org/JuMP.jl/v0.21/callbacks/#Available-solvers-1)).
+
+"""
 function get_optimal_tour(
     cost::AbstractMatrix,
     drop_penalties::Dict,
