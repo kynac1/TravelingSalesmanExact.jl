@@ -543,10 +543,12 @@ function _get_optimal_tour(
     end
     if !isnothing(times) && !isnothing(time_windows)
         @variable(model, time_windows[i,1] <= time_vars[i = 1:size(time_windows, 1)] <= time_windows[i,2])
+        @variable(model, time_windows[1,1] <= end_time <= time_windows[1,2])
         for i in 1:size(cost, 1)
             for j in 2:size(cost, 1)
-                @constraint(model, time_vars[i] + times[i,j] <= time_vars[j] + maximum(time_windows)*(1-tour_matrix[i,j]))
+                @constraint(model, time_vars[i] + times[i,j] <= time_vars[j] + 10*maximum(time_windows)*(1-tour_matrix[i,j]))
             end
+            @constraint(model, time_vars[i] + times[i,1] <= end_time + 10*maximum(time_windows)*(1-tour_matrix[i,1]))
         end
     end
 
